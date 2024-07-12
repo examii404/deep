@@ -1,0 +1,77 @@
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torchvision import datasets, transforms
+from torch.utils.data import DataLoader, Subset
+import numpy as np
+
+transform = transforms.Compose([
+    transforms.ToTensor(),
+])
+
+train_data = datasets.MNIST(root="./data", train=True, download=True, transform=transform)
+test_data = datasets.MNIST(root="./data", train=False, download=True, transform=transform)
+
+train_subset = Subset(train_data, range(200))
+test_subset = Subset(test_data, range(50))
+train_loader = DataLoader(train_subset, batch_size=10, shuffle=True)
+test_loader = DataLoader(test_subset, batch_size=10, shuffle=False)
+
+class SimpleANN(nn.Module):
+    def __init__(self):
+        super(SimpleANN, self).__init__()
+        self.fc1 = nn.Linear(28*28, 128)
+        self.fc2 = nn.Linear(128, 64)
+        self.fc3 = nn.Linear(64, 10)
+    
+    def forward(self, x):
+        x = torch.flatten(x, start_dim=1)
+        x = self.fc1(x)
+        x = self.fc2(x)
+        x = self.fc3(x)
+        return x
+
+model = SimpleANN()
+optimizer = optim.Adam(model.parameters(), lr=0.001)
+criterion = nn.CrossEntropyLoss()
+
+def train_model(num_epochs):
+    for epoch in range(num_epochs):
+        model.train()
+        train_loss = 0
+        correct_train = 0
+        total_train = 0
+        
+        for data, targets in train_loader:
+            optimizer.zero_grad()
+            outputs = model(data)
+            loss = criterion(outputs, targets)
+            loss.backward()
+            optimizer.step()
+            train_loss += loss.item()
+            predicted = torch.argmax(outputs, dim=1)
+            total_train += targets.size(0)
+            correct_train += (predicted == targets).sum().item()
+        
+        avg_train_loss = train_loss / len(train_loader)
+        train_acc = 100 * correct_train / total_train
+        
+        model.eval()
+        test_loss = 0
+        total_test = 0
+        correct_test = 0
+        
+        with torch.no_grad():
+            for data, targets in test_loader:
+                outputs = model(data)
+                loss = criterion(outputs, targets)
+                test_loss += loss.item()
+                predicted = torch.argmax(outputs, dim=1)
+                total_test += targets.size(0)
+                correct_test += (predicted == targets).sum().item()
+        
+        avg_test_loss = test_loss / len(test_loader)
+        test_acc = 100 * correct_test / total_test
+        print(f'Epoch {epoch+1}, avg_train_loss: {avg_train_loss:.4f}, train_acc: {train_acc:.2f}%, avg_test_loss: {avg_test_loss:.4f}, test_acc: {test_acc:.2f}%')
+
+train_model(10)
